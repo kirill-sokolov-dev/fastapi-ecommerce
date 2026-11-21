@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from decimal import Decimal
+
+from sqlalchemy import String, Integer
 
 
 class CategoryCreate(BaseModel):
@@ -55,4 +57,24 @@ class Product(BaseModel):
     is_active: bool = Field(..., description="Активность товара")
 
     model_config = ConfigDict(from_attributes=True)
-    
+
+class UserCreate(BaseModel):
+    """
+    Модель для создания и обновления пользователя.
+    Используется в POST и PUT запросах.
+    """
+    email: EmailStr = Field(description="Email пользователя")
+    password: str = Field(min_length=8, description="Введите пароль (не менее 8 символов)")
+    role : str = Field(default="buyer", pattern="^(buyer | seller)$", description="Роль - 'buyer' или 'seller'")
+
+class User(BaseModel):
+    """
+    Модель для ответа с данными пользователя.
+    Используется в GET запросах.
+    """
+    id: int
+    email: EmailStr
+    password: str
+    role: str
+    model_config = ConfigDict(from_attributes=True)
+
