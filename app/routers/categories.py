@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.params import Depends
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -7,6 +8,9 @@ from app.schemas import Category as CategorySchema, CategoryCreate
 from app.db_depends import get_db, get_async_db
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import get_current_admin
+from app.models import User as UserModel
 
 router = APIRouter(prefix="/categories", tags=["categories"], )
 
@@ -23,10 +27,16 @@ async def get_all_categories(db: AsyncSession = Depends(get_async_db)):
 
 
 @router.post("/", response_model=CategorySchema, status_code=status.HTTP_201_CREATED)
-async def create_category(category : CategoryCreate, db : AsyncSession = Depends(get_async_db)):
+async def create_category(category : CategoryCreate,
+                          db : AsyncSession = Depends(get_async_db),
+                          current_admin: UserModel = Depends(get_current_admin)
+                          ):
     """
     Создаёт новую категорию.
     """
+    if current_admin is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin has root for that")
+
     if category.parent_id is not None:
         result = await db.scalars(select(CategoryModel).where(CategoryModel.id == category.parent_id,
                                            CategoryModel.is_active == True))
@@ -42,11 +52,17 @@ async def create_category(category : CategoryCreate, db : AsyncSession = Depends
 
 
 @router.put("/{category_id}", response_model=CategorySchema)
-async def update_category(category_id: int, category: CategoryCreate, db: AsyncSession = Depends(get_async_db)):
+async def update_category(category_id: int,
+                          category: CategoryCreate,
+                          db: AsyncSession = Depends(get_async_db),
+                          current_admin: UserModel = Depends(get_current_admin)):
     """
     Обновляет категорию по её ID.
     """
     # Проверяем существование категории
+    if current_admin is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin has root for that")
+
     stmt = select(CategoryModel).where(CategoryModel.id == category_id,
                                        CategoryModel.is_active == True)
     result = await db.scalars(stmt)
@@ -77,10 +93,15 @@ async def update_category(category_id: int, category: CategoryCreate, db: AsyncS
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_200_OK)
-async def delete_category(category_id: int, db: AsyncSession = Depends(get_async_db)):
+async def delete_category(category_id: int,
+                          db: AsyncSession = Depends(get_async_db),
+                          current_admin: UserModel = Depends(get_current_admin)):
     """
     Удаляет категорию по её ID.
     """
+    if current_admin is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin has root for that")
+
     stmt = await db.scalars(select(CategoryModel).
                             where(CategoryModel.id == category_id, CategoryModel.is_active == True))
     category = stmt.first()
