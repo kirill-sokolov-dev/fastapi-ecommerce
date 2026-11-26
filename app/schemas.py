@@ -1,8 +1,10 @@
+from click import DateTime
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from decimal import Decimal
 
-from sqlalchemy import String, Integer
+from sqlalchemy import String, Integer, Float
 
+from datetime import datetime
 
 class CategoryCreate(BaseModel):
     """
@@ -56,6 +58,7 @@ class Product(BaseModel):
     category_id: int = Field(..., description="ID категории")
     is_active: bool = Field(..., description="Активность товара")
 
+    rating: float = Field(default=0.0)
     model_config = ConfigDict(from_attributes=True)
 
 class UserCreate(BaseModel):
@@ -81,3 +84,21 @@ class User(BaseModel):
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
+class CreateReview(BaseModel):
+    """
+    Модель отзывов оставленный User на Product
+    """
+    product_id: int = Field(..., description="Уникальный ID товара на который оставили отзыв")
+    comment: str | None = Field(None, description="Комментарий пользователя")
+    grade: int = Field(..., ge=1, le=5, description="Оценка товара от пользователя")
+
+class Review(BaseModel):
+    id: int
+    user_id : int
+    product_id: int
+    comment : str | None
+    comment_date : datetime
+    grade : int
+    is_active : bool
+
+    model_config = ConfigDict(from_attributes=True)

@@ -11,3 +11,5 @@ class User(Base):
     is_active : Mapped[bool] = mapped_column(Boolean, default=True)
     role : Mapped[str] = mapped_column(String, default="buyer")
     products : Mapped[list["Product"]] = relationship("Product", back_populates="seller")
+
+    reviews: Mapped[list["Review"]] = relationship("Review", back_populates="user")
