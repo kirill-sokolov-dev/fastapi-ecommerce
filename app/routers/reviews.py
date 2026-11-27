@@ -2,13 +2,27 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from app.db_depends import get_async_db
 from app.schemas import CreateReview, Review as ReviewSchema
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.auth import get_current_buyer
+from app.auth import get_current_buyer, get_current_user_role_for_delete, get_current_user
 from app.models import User as UserModel, Review as ReviewModel, Product as ProductModel
 from sqlalchemy import select, func
 
 
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
+
+
+async def update_product_rating(db: AsyncSession, product_id: int):
+    result = await db.execute(
+        select(func.avg(ReviewModel.grade)).where(
+            ReviewModel.product_id == product_id,
+            ReviewModel.is_active == True
+        )
+    )
+    avg_rating = result.scalar() or 0.0
+    product = await db.get(ProductModel, product_id)
+    product.rating = avg_rating
+    await db.commit()
+    await db.refresh(product)
 
 @router.post("/", response_model=ReviewSchema, status_code=status.HTTP_201_CREATED)
 async def create_review(review: CreateReview,
@@ -37,13 +51,7 @@ async def create_review(review: CreateReview,
     await db.commit()
     await db.refresh(new_review)
 
-    grade_sum = await db.execute(select(func.avg(ReviewModel.grade)).where(ReviewModel.product_id == review.product_id))
-
-    new_rating = grade_sum.scalar()
-
-    product.rating = new_rating
-
-    await db.commit()
+    await update_product_rating(db, product.id)
 
     return new_review
 
@@ -56,7 +64,7 @@ async def get_all_reviews(db: AsyncSession = Depends(get_async_db)):
 
     return result.all()
 
-@router.get("/products/{product_id}/", response_model=list[ReviewSchema], status_code=status.HTTP_200_OK)
+@router.get("/{product_id}", response_model=list[ReviewSchema], status_code=status.HTTP_200_OK)
 async def get_reviews_from_product_id(product_id: int, db: AsyncSession = Depends(get_async_db)):
     stmt_product = await db.scalars(select(ProductModel).where(ProductModel.is_active == True, ProductModel.id == product_id))
     product = stmt_product.first()
@@ -73,3 +81,32 @@ async def get_reviews_from_product_id(product_id: int, db: AsyncSession = Depend
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отзывов не найдено")
 
     return reviews
+
+@router.delete("/{review_id}", status_code=status.HTTP_200_OK)
+async def delete_review(review_id: int,
+                        db: AsyncSession = Depends(get_async_db),
+                        current_user: UserModel = Depends(get_current_user_role_for_delete)):
+
+    stmt_review = await db.scalars(
+        select(ReviewModel).where(ReviewModel.id == review_id, ReviewModel.user_id == current_user.id))
+
+    review = stmt_review.first()
+
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    if review is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отзыв не найден")
+
+    review.is_active = False
+
+    await db.commit()
+    await db.refresh(review)
+
+    stmt_product = await db.scalars(
+        select(ProductModel).where(ProductModel.is_active == True, ProductModel.id == review.product_id))
+    product = stmt_product.first()
+
+    await update_product_rating(db, product.id)
+
+    return {"message": "Review deleted"}

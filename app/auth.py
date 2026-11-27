@@ -128,3 +128,9 @@ async def get_current_buyer(current_user: UserModel = Depends(get_current_user))
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only buyer can perform this action")
 
     return current_user
+
+async def get_current_user_role_for_delete(current_user: UserModel = Depends(get_current_user)):
+    if not(current_user.role == "admin") and not(current_user.role == "buyer"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This function is not available for you")
+
+    return current_user
