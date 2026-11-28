@@ -93,6 +93,10 @@ class CreateReview(BaseModel):
     grade: int = Field(..., ge=1, le=5, description="Оценка товара от пользователя")
 
 class Review(BaseModel):
+    """
+    Модель для ответа с данными отзывов.
+    Используется в GET запросах.
+    """
     id: int
     user_id : int
     product_id: int
@@ -102,3 +106,12 @@ class Review(BaseModel):
     is_active : bool
 
     model_config = ConfigDict(from_attributes=True)
+
+class ProductList(BaseModel):
+    """
+    Список пагинации для товаров.
+    """
+    items: list[Product] = Field(description="Товары для текущей страницы")
+    total: int = Field(ge=0, description="Общее количество товаров")
+    page: int = Field(ge=1, description="Номер текущей страницы")
+    page_size: int = Field(ge=1, description="Количество элементов на странице")
